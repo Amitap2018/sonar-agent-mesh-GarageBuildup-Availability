@@ -35,7 +35,7 @@ jobs:
       - name: Deploy (GitHub Deployment)
         id: dep
         run: |
-          ID=$(gh api "repos/$R/deployments" -f ref="$GITHUB_SHA" -f environment="$ENVN" -F auto_merge=false -F 'required_contexts=[]' --jq .id)
+          ID=$(jq -n --arg ref "$GITHUB_SHA" --arg env "$ENVN" '{ref:$ref,environment:$env,auto_merge:false,required_contexts:[],description:"release"}' | gh api "repos/$R/deployments" --input - --jq .id)
           gh api "repos/$R/deployments/$ID/statuses" -f state=success -f description="deployed $GITHUB_SHA" >/dev/null
           echo "id=$ID" >> "$GITHUB_OUTPUT"
       - name: Soak (stability SLO)
@@ -47,7 +47,7 @@ jobs:
         run: |
           gh api "repos/$R/deployments/${{ steps.dep.outputs.id }}/statuses" -f state=failure -f description="SLO breach, rolled back" >/dev/null
           if [ -n "${{ steps.prev.outputs.sha }}" ]; then
-            RID=$(gh api "repos/$R/deployments" -f ref="${{ steps.prev.outputs.sha }}" -f environment="$ENVN" -F auto_merge=false -F 'required_contexts=[]' -f description="rollback" --jq .id)
+            RID=$(jq -n --arg ref "${{ steps.prev.outputs.sha }}" --arg env "$ENVN" '{ref:$ref,environment:$env,auto_merge:false,required_contexts:[],description:"rollback"}' | gh api "repos/$R/deployments" --input - --jq .id)
             gh api "repos/$R/deployments/$RID/statuses" -f state=success -f description="rolled back to ${{ steps.prev.outputs.sha }}" >/dev/null
           fi
           exit 1
