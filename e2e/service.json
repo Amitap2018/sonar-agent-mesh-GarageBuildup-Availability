@@ -1,1 +1,1 @@
-{"service": "payments", "pool_size": 40, "request_ms": 5}
+{"service": "payments", "pool_size": 4, "request_ms": 5}
