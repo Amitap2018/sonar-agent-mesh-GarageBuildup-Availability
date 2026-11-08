@@ -1,0 +1,53 @@
+name: e2e-release
+on:
+  push:
+    branches: ['e2e/release/**']
+permissions:
+  contents: read
+  deployments: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      R: ${{ github.repository }}
+      ENVN: e2e-staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -q pytest pytest-cov
+      - name: "Gate: tests + coverage >= 80%"
+        run: python -m pytest -q -p no:cacheprovider --cov=payments --cov-branch --cov-fail-under=80 tests
+      - name: "Gate: learned gates (added by the Remediation agent)"
+        run: |
+          shopt -s nullglob
+          for g in e2e/gates/*.py; do echo "== $g"; python "$g"; done
+      - name: Find last good deployment (rollback target)
+        id: prev
+        run: |
+          PREV=""
+          for id in $(gh api "repos/$R/deployments?environment=$ENVN&per_page=20" --jq '.[].id'); do
+            st=$(gh api "repos/$R/deployments/$id/statuses" --jq '.[0].state')
+            if [ "$st" = "success" ]; then PREV=$(gh api "repos/$R/deployments/$id" --jq .sha); break; fi
+          done
+          echo "sha=$PREV" >> "$GITHUB_OUTPUT"; echo "rollback target: ${PREV:-none}"
+      - name: Deploy (GitHub Deployment)
+        id: dep
+        run: |
+          ID=$(gh api "repos/$R/deployments" -f ref="$GITHUB_SHA" -f environment="$ENVN" -F auto_merge=false -F 'required_contexts=[]' --jq .id)
+          gh api "repos/$R/deployments/$ID/statuses" -f state=success -f description="deployed $GITHUB_SHA" >/dev/null
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+      - name: Soak (stability SLO)
+        id: soak
+        continue-on-error: true
+        run: python e2e/soak.py
+      - name: Roll back on SLO breach
+        if: steps.soak.outcome == 'failure'
+        run: |
+          gh api "repos/$R/deployments/${{ steps.dep.outputs.id }}/statuses" -f state=failure -f description="SLO breach, rolled back" >/dev/null
+          if [ -n "${{ steps.prev.outputs.sha }}" ]; then
+            RID=$(gh api "repos/$R/deployments" -f ref="${{ steps.prev.outputs.sha }}" -f environment="$ENVN" -F auto_merge=false -F 'required_contexts=[]' -f description="rollback" --jq .id)
+            gh api "repos/$R/deployments/$RID/statuses" -f state=success -f description="rolled back to ${{ steps.prev.outputs.sha }}" >/dev/null
+          fi
+          exit 1
