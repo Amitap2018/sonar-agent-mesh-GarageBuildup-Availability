@@ -12,7 +12,7 @@ def card_fee(amount, card_type, is_international=False):
         rate = 0.008
         fixed = 0.10
     elif card_type == "credit":
-        rate = 0.019
+        rate = 0.029
         fixed = 0.25
     elif card_type == "amex":
         rate = 0.029
