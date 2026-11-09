@@ -5,6 +5,7 @@ on:
 permissions:
   contents: read
   deployments: write
+  issues: write
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -12,8 +13,14 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       R: ${{ github.repository }}
       ENVN: e2e-staging
+      SN_INSTANCE: ${{ secrets.SN_INSTANCE }}
+      SN_CLIENT_ID: ${{ secrets.SN_CLIENT_ID }}
+      SN_CLIENT_SECRET: ${{ secrets.SN_CLIENT_SECRET }}
+      SN_APPROVER_CLIENT_ID: ${{ secrets.SN_APPROVER_CLIENT_ID }}
+      SN_APPROVER_CLIENT_SECRET: ${{ secrets.SN_APPROVER_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
       - run: pip install -q pytest pytest-cov
@@ -23,6 +30,9 @@ jobs:
         run: |
           shopt -s nullglob
           for g in e2e/gates/*.py; do echo "== $g"; python "$g"; done
+      - name: "ServiceNow: open the change, risk-score it, get approval"
+        id: change
+        run: python e2e/loop.py open-change
       - name: Find last good deployment (rollback target)
         id: prev
         run: |
@@ -50,4 +60,12 @@ jobs:
             RID=$(jq -n --arg ref "${{ steps.prev.outputs.sha }}" --arg env "$ENVN" '{ref:$ref,environment:$env,auto_merge:false,required_contexts:[],description:"rollback"}' | gh api "repos/$R/deployments" --input - --jq .id)
             gh api "repos/$R/deployments/$RID/statuses" -f state=success -f description="rolled back to ${{ steps.prev.outputs.sha }}" >/dev/null
           fi
-          exit 1
+      - name: "ServiceNow: soak passed, close the change (and the loop, if this is a fix)"
+        if: steps.soak.outcome == 'success'
+        run: python e2e/loop.py close-ok
+      - name: "ServiceNow: soak failed, close the change, open incident, problem and GIT case"
+        if: steps.soak.outcome == 'failure'
+        run: python e2e/loop.py close-fail
+      - name: Fail the job when the release was rolled back
+        if: steps.soak.outcome == 'failure'
+        run: exit 1
