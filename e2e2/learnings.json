@@ -10,5 +10,11 @@
   "problem": "PRB0040069",
   "run": "42782350625",
   "approved": "auto, by policy"
+ },
+ {
+  "class": "dependency",
+  "problem": "PRB0040068",
+  "run": "42782337246",
+  "approved": "auto, by policy"
  }
 ]
