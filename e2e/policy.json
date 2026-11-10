@@ -1,1 +1,1 @@
-{"tier": 2, "high_risk_threshold": 70, "sensitive_paths": ["payments/"]}
+{"tier": 1, "high_risk_threshold": 70, "sensitive_paths": ["payments/"]}
