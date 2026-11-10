@@ -4,5 +4,11 @@
   "problem": "PRB0040067",
   "run": "42782326041",
   "approved": "auto, by policy"
+ },
+ {
+  "class": "pool",
+  "problem": "PRB0040069",
+  "run": "42782350625",
+  "approved": "auto, by policy"
  }
 ]
