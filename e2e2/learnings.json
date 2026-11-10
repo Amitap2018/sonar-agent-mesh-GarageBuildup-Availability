@@ -28,5 +28,11 @@
   "problem": "PRB0040062",
   "run": "42781426857",
   "approved": "auto, by policy"
+ },
+ {
+  "class": "silent",
+  "problem": "PRB0040065",
+  "run": "42781499256",
+  "approved": "auto, by policy"
  }
 ]
