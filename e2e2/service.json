@@ -1,1 +1,1 @@
-{"pool_size": 40, "request_ms": 5, "extra_latency_ms": 0, "downstream_error_pct": 0, "leak_kb": 0, "fee_markup_pct": 0}
+{"pool_size": 40, "request_ms": 5, "extra_latency_ms": 0, "downstream_error_pct": 0, "leak_kb": 32, "fee_markup_pct": 0}
