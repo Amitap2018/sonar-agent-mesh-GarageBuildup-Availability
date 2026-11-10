@@ -237,6 +237,19 @@ def close_fail():
     out("incident", inc["number"]); out("problem", prb["number"]); out("git_case", case_url)
 
 
+def check_auth():
+    """Try each identity's token request and report only the status (never the token)."""
+    for who in ("pipeline", "approver"):
+        pre = "SN_CLIENT" if who == "pipeline" else "SN_APPROVER_CLIENT"
+        cid, sec = os.environ.get(f"{pre}_ID", ""), os.environ.get(f"{pre}_SECRET", "")
+        log(f"{who}: client id length {len(cid)}, secret length {len(sec)}, id ends ...{cid[-4:]}")
+        body = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": cid, "client_secret": sec}).encode()
+        try:
+            with urllib.request.urlopen(urllib.request.Request(BASE + "/oauth_token.do", data=body, headers={"Content-Type": "application/x-www-form-urlencoded"}), timeout=40) as r:
+                j = json.loads(r.read()); log(f"{who}: HTTP {r.status}, got a token: {'access_token' in j}")
+        except urllib.error.HTTPError as e: log(f"{who}: HTTP {e.code} {e.read().decode()[:160]}")
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
-    {"open-change": open_change, "close-ok": close_ok, "close-fail": close_fail}.get(mode, lambda: sys.exit(__doc__))()
+    {"open-change": open_change, "close-ok": close_ok, "close-fail": close_fail, "check-auth": check_auth}.get(mode, lambda: sys.exit(__doc__))()

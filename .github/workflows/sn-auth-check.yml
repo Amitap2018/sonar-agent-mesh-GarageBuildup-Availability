@@ -1,0 +1,18 @@
+name: sn-auth-check
+on:
+  push:
+    branches: ['e2e/authcheck/**']
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SN_INSTANCE: ${{ secrets.SN_INSTANCE }}
+      SN_CLIENT_ID: ${{ secrets.SN_CLIENT_ID }}
+      SN_CLIENT_SECRET: ${{ secrets.SN_CLIENT_SECRET }}
+      SN_APPROVER_CLIENT_ID: ${{ secrets.SN_APPROVER_CLIENT_ID }}
+      SN_APPROVER_CLIENT_SECRET: ${{ secrets.SN_APPROVER_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: python e2e/loop.py check-auth
