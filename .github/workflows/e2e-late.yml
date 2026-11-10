@@ -1,0 +1,24 @@
+name: e2e-late
+on:
+  push:
+    branches: ['e2e/late/**']
+permissions:
+  contents: read
+  issues: write
+jobs:
+  late:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      R: ${{ github.repository }}
+      SN_INSTANCE: ${{ secrets.SN_INSTANCE }}
+      SN_CLIENT_ID: ${{ secrets.SN_CLIENT_ID }}
+      SN_CLIENT_SECRET: ${{ secrets.SN_CLIENT_SECRET }}
+      SN_APPROVER_CLIENT_ID: ${{ secrets.SN_APPROVER_CLIENT_ID }}
+      SN_APPROVER_CLIENT_SECRET: ${{ secrets.SN_APPROVER_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - name: "ServiceNow: open the incident, GIT case and problem for a late-detected defect"
+        run: python e2e2/late.py

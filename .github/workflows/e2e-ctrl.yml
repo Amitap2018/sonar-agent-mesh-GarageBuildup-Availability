@@ -1,0 +1,25 @@
+name: e2e-ctrl
+on:
+  push:
+    branches: ['e2e/ctrl/**']
+permissions:
+  contents: read
+  deployments: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      R: ${{ github.repository }}
+      ENVN: e2e-ctrl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - name: Deploy with no gates, no soak and no rollback (control)
+        run: |
+          ID=$(jq -n --arg ref "$GITHUB_SHA" --arg env "$ENVN" '{ref:$ref,environment:$env,auto_merge:false,required_contexts:[],description:"control release"}' | gh api "repos/$R/deployments" --input - --jq .id)
+          gh api "repos/$R/deployments/$ID/statuses" -f state=success -f description="deployed $GITHUB_SHA" >/dev/null
+      - name: Audit only (records what a soak would have seen; takes no action)
+        continue-on-error: true
+        run: python e2e2/soak2.py

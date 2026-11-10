@@ -1,0 +1,74 @@
+name: e2e-v2
+on:
+  push:
+    branches: ['e2e/v2/**']
+permissions:
+  contents: write
+  deployments: write
+  issues: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      R: ${{ github.repository }}
+      ENVN: e2e-v2
+      SN_INSTANCE: ${{ secrets.SN_INSTANCE }}
+      SN_CLIENT_ID: ${{ secrets.SN_CLIENT_ID }}
+      SN_CLIENT_SECRET: ${{ secrets.SN_CLIENT_SECRET }}
+      SN_APPROVER_CLIENT_ID: ${{ secrets.SN_APPROVER_CLIENT_ID }}
+      SN_APPROVER_CLIENT_SECRET: ${{ secrets.SN_APPROVER_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -q pytest pytest-cov
+      - name: "Gate: tests + coverage >= 80%"
+        run: python -m pytest -q -p no:cacheprovider --cov=payments --cov-branch --cov-fail-under=80 tests
+      - name: "Gate: learned gates (added by the Remediation agent)"
+        run: |
+          shopt -s nullglob
+          for g in e2e2/gates/*.py; do echo "== $g"; python "$g"; done
+      - name: "ServiceNow: open the change, risk-score it, get approval"
+        id: change
+        run: python e2e/loop.py open-change
+      - name: Find last good deployment (rollback target)
+        id: prev
+        run: |
+          PREV=""
+          for id in $(gh api "repos/$R/deployments?environment=$ENVN&per_page=20" --jq '.[].id'); do
+            st=$(gh api "repos/$R/deployments/$id/statuses" --jq '.[0].state')
+            if [ "$st" = "success" ]; then PREV=$(gh api "repos/$R/deployments/$id" --jq .sha); break; fi
+          done
+          echo "sha=$PREV" >> "$GITHUB_OUTPUT"; echo "rollback target: ${PREV:-none}"
+      - name: Deploy (GitHub Deployment)
+        id: dep
+        run: |
+          ID=$(jq -n --arg ref "$GITHUB_SHA" --arg env "$ENVN" '{ref:$ref,environment:$env,auto_merge:false,required_contexts:[],description:"release"}' | gh api "repos/$R/deployments" --input - --jq .id)
+          gh api "repos/$R/deployments/$ID/statuses" -f state=success -f description="deployed $GITHUB_SHA" >/dev/null
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+      - name: Soak (stability SLO)
+        id: soak
+        continue-on-error: true
+        run: python e2e2/soak2.py
+      - name: Roll back on SLO breach
+        if: steps.soak.outcome == 'failure'
+        run: |
+          gh api "repos/$R/deployments/${{ steps.dep.outputs.id }}/statuses" -f state=failure -f description="SLO breach, rolled back" >/dev/null
+          if [ -n "${{ steps.prev.outputs.sha }}" ]; then
+            RID=$(jq -n --arg ref "${{ steps.prev.outputs.sha }}" --arg env "$ENVN" '{ref:$ref,environment:$env,auto_merge:false,required_contexts:[],description:"rollback"}' | gh api "repos/$R/deployments" --input - --jq .id)
+            gh api "repos/$R/deployments/$RID/statuses" -f state=success -f description="rolled back to ${{ steps.prev.outputs.sha }}" >/dev/null
+          fi
+      - name: "ServiceNow: soak passed, close the change (and the loop, if this is a fix)"
+        if: steps.soak.outcome == 'success'
+        run: python e2e/loop.py close-ok
+      - name: "ServiceNow: soak failed, close the change, open incident, problem and GIT case"
+        if: steps.soak.outcome == 'failure'
+        run: python e2e/loop.py close-fail
+      - name: "Remediation agent: learn from the fix (gate auto-approved by policy)"
+        if: steps.soak.outcome == 'success'
+        run: python e2e2/remediate.py
+      - name: Fail the job when the release was rolled back
+        if: steps.soak.outcome == 'failure'
+        run: exit 1
