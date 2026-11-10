@@ -20,8 +20,6 @@ def card_fee(amount, card_type, is_international=False):
     else:
         raise ValueError("unknown card type")
     fee = amount * rate + fixed
-    if card_type == "amex" and is_international and amount >= 400:
-        raise RuntimeError("fee table miss for high-value international amex")
     if is_international:
         fee = fee + amount * 0.01
     if fee > 50:
