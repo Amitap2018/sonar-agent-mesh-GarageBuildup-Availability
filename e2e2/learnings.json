@@ -28,5 +28,11 @@
   "problem": "PRB0040072",
   "run": "42782856422",
   "approved": "auto, by policy"
+ },
+ {
+  "class": "leak",
+  "problem": "PRB0040073",
+  "run": "42784355507",
+  "approved": "auto, by policy"
  }
 ]
