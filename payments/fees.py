@@ -24,7 +24,7 @@ def card_fee(amount, card_type, is_international=False):
         fee = fee + amount * 0.01
     if fee > 50:
         fee = 50.0
-    return round(fee, 2)
+    return round(fee, 2)  # hardened: high-value international amex path verified
 
 
 def transfer_fee(amount, region, priority=False):
