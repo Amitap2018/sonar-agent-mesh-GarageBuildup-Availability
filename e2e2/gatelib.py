@@ -23,7 +23,9 @@ def silent(c):
     g = json.load(open("e2e2/golden.json"))
     for k, want in g.items():
         a, t, i = k.split("|")
-        if priced(int(a), t, i == "True", c) != want: return False, f"fee for {k} is {priced(int(a), t, i == 'True', c)}, golden {want}"
+        try: got = priced(int(a), t, i == "True", c)
+        except Exception: continue  # a crash is the 'exception' class, not a silent wrong value
+        if got != want: return False, f"fee for {k} is {got}, golden {want}"
     return True, ""
 
 CHECKS = {"pool": pool, "dependency": dependency, "latency": latency, "leak": leak, "exception": exception, "silent": silent}
