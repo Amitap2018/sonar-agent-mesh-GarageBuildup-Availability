@@ -16,5 +16,11 @@
   "problem": "PRB0040068",
   "run": "42782337246",
   "approved": "auto, by policy"
+ },
+ {
+  "class": "latency",
+  "problem": "PRB0040070",
+  "run": "42782575140",
+  "approved": "auto, by policy"
  }
 ]
