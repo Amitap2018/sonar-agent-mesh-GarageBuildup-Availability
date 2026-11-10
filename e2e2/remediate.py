@@ -17,6 +17,7 @@ for attempt in range(8):
     sh("git", "fetch", "-q", "origin", "main"); sh("git", "checkout", "-q", "-B", "learn", "origin/main")
     gate = f"e2e2/gates/learned_{cls}.py"
     if os.path.exists(gate): print(f"gate for {cls} already learned"); sys.exit(0)
+    os.makedirs("e2e2/gates", exist_ok=True)
     open(gate, "w").write(f'"""Learned gate (Remediation agent, from {prb}). Auto-approved by policy."""\nimport sys\nsys.path.insert(0, "e2e2")\nimport gatelib\nsys.exit(gatelib.check("{cls}"))\n')
     L = json.load(open("e2e2/learnings.json")) if os.path.exists("e2e2/learnings.json") else []
     L.append({"class": cls, "problem": prb, "run": os.environ.get("GITHUB_RUN_ID"), "approved": "auto, by policy"}); json.dump(L, open("e2e2/learnings.json", "w"), indent=1)
