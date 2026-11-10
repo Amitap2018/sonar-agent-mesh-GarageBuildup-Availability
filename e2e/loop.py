@@ -125,11 +125,19 @@ def request_approval(cid, mode, score, gates_note):
     log(f"  approval rows requested: {len(rows)}")
     if mode == "auto":
         agent = find("sys_user", "user_name=" + os.environ.get("SN_APPROVER_USER", "release.approval.agent"), ["sys_id"]).get("sys_id", "")
-        mine = [x for x in rows if x.get("approver") == agent] or [x for x in call("GET", f"/api/now/table/sysapproval_approver?sysparm_query=sysapproval={cid}^approver={agent}&sysparm_fields=sys_id&sysparm_exclude_reference_link=true", who="approver")[1].get("result", [])]
-        if not mine: sys.exit("the release approval agent has no approval row on this change (is it a member of the approving group?)")
-        for x in mine:
-            s, r = call("PATCH", f"/api/now/table/sysapproval_approver/{x['sys_id']}", {"state": "approved", "comments": f"Auto-approved by the Release approval agent. Risk score {score}, below the human-approval threshold. {gates_note}"}, who="approver")
-            log(f"  agent approval row -> HTTP {s} {r.get('error', '')}")
+        done = 0
+        # A change can need several approval groups; the next group's rows appear after the previous group approves.
+        # The agent approves every row it owns, then looks again, until the change itself is approved.
+        for _ in range(12):
+            if val(read("change_request", cid, ["approval"]).get("approval")) == "approved": break
+            mine = call("GET", f"/api/now/table/sysapproval_approver?sysparm_query=sysapproval={cid}^approver={agent}^state=requested&sysparm_fields=sys_id&sysparm_exclude_reference_link=true", who="approver")[1].get("result", [])
+            for x in mine:
+                s, r = call("PATCH", f"/api/now/table/sysapproval_approver/{x['sys_id']}", {"state": "approved", "comments": f"Auto-approved by the Release approval agent. Risk score {score}, below the human-approval threshold. {gates_note}"}, who="approver")
+                log(f"  agent approval row -> HTTP {s} {r.get('error', '')}"); done += 1
+            time.sleep(10)
+        if not done: sys.exit("the release approval agent has no approval row on this change (is it a member of the approving group?)")
+        if val(read("change_request", cid, ["approval"]).get("approval")) != "approved":
+            sys.exit("the agent approved its rows but the change still lacks approval; another approver is needed, release stopped")
         return "approved by the release approval agent"
     log(f"  high risk (score {score}): waiting up to {HUMAN_WAIT_MIN} min for a person to approve {cid} in ServiceNow")
     end = time.time() + HUMAN_WAIT_MIN * 60
